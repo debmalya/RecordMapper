@@ -34,6 +34,13 @@ import org.deb.task.FieldMapper;
  *
  */
 public class Converter {
+	ExecutorService executors;
+
+	public Converter(int numberOfFields) {
+		executors = Executors
+				.newFixedThreadPool(numberOfFields);
+	}
+
 	/**
 	 * Converts an input record to output record based on the provided mapping.
 	 * 
@@ -90,8 +97,6 @@ public class Converter {
 			ExecutionException {
 		Map<String, String> rawFieldMap = new LinkedHashMap<>();
 		if (conversionMap != null) {
-			ExecutorService executors = Executors
-					.newFixedThreadPool(conversionMap.getFieldMapper().size());
 
 			switch (conversionMap.getType()) {
 			case DELIMITER:
@@ -114,9 +119,8 @@ public class Converter {
 							FieldMapping value = nextFieldMapping.getValue();
 							if (nextFieldMapping != null && key != null
 									&& value != null) {
-								FieldMapper mapper = new FieldMapper(
-										value, values,
-										record, conversionMap.getType());
+								FieldMapper mapper = new FieldMapper(value,
+										values, record, conversionMap.getType());
 								Future<NameNValue> mappedField = executors
 										.submit(mapper);
 								rawFieldMap.put(key, mappedField.get()
@@ -127,17 +131,17 @@ public class Converter {
 					} catch (InterruptedException | ExecutionException ie) {
 						throw ie;
 					} finally {
-						executors.shutdown();
+//						executors.shutdown();
 					}
 
-					if (executors != null) {
-						executors.awaitTermination(1, TimeUnit.MILLISECONDS);
-						if (executors.isTerminated()) {
-							// Terminated successfully.
-						} else {
-							// what to do here
-						}
-					}
+//					if (executors != null) {
+//						executors.awaitTermination(1, TimeUnit.MILLISECONDS);
+//						if (executors.isTerminated()) {
+//							// Terminated successfully.
+//						} else {
+//							// what to do here
+//						}
+//					}
 				}
 				break;
 			case FIXED_LENGTH:
@@ -146,5 +150,9 @@ public class Converter {
 
 		}
 		return rawFieldMap;
+	}
+	
+	public void shutDown(){
+		executors.shutdown();
 	}
 }

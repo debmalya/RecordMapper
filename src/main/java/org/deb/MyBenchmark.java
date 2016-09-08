@@ -43,6 +43,7 @@ import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.Scope;
 import org.openjdk.jmh.annotations.Setup;
 import org.openjdk.jmh.annotations.State;
+import org.openjdk.jmh.annotations.TearDown;
 
 // @State annotation defines the scope in which an instance of a given class will be available. 
 // Scope.Benchmark - 	An instance will be shared across all threads running the same test. 
@@ -130,10 +131,14 @@ public class MyBenchmark {
 		
 		fixedLengthCDRMapping = new Mapping(RecordType.FIXED_LENGTH,fixedFieldMapping,null);
 		
-		converter = new Converter();
+		converter = new Converter(fixedFieldMapping.size());
 
 	}
 
+	@TearDown
+	public void reset(){
+		converter.shutDown();
+	}
 	@Benchmark
 	public void testSingleThreaded() {
 		converter.convert(CDR_CSV, delimitedCDRMapping);
