@@ -153,6 +153,26 @@ public class MyBenchmark {
 			e.printStackTrace();
 		}
 	}
+	
+	@Benchmark
+	public void testExecutorsConcurrentHashMap() {
+		try {
+			converter.convertExecutorConcurrentHashMap(CDR_CSV, delimitedCDRMapping);
+		} catch (InterruptedException | ExecutionException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		}
+	}
+	
+	@Benchmark
+	public void testExecutorsSubmittedList() {
+		try {
+			converter.convertList(CDR_CSV, delimitedCDRMapping);
+		} catch (InterruptedException | ExecutionException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		}
+	}
 
 }
 

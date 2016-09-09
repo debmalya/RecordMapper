@@ -35,13 +35,15 @@ public class FieldMapper implements Callable<NameNValue> {
 	
 	private RecordType recordType;
 	
+	private String key;
 	
 
-	public FieldMapper(FieldMapping fieldMapping,String[] values,String record,RecordType recordType) {
+	public FieldMapper(FieldMapping fieldMapping,String[] values,String record,RecordType recordType,String key) {
 		this.fieldMapping = fieldMapping;
 		this.record = record;
 		this.recordType = recordType;
 		this.values = values;
+		this.key = key;
 	}
 
 
@@ -54,12 +56,24 @@ public class FieldMapper implements Callable<NameNValue> {
 //		fieldMapping
 		switch(recordType){
 		case DELIMITER:
-			return new NameNValue(fieldMapping.fieldName, values[fieldMapping.fieldPosition - 1]);
+			return new NameNValue(key, values[fieldMapping.fieldPosition - 1]);
 		
 		case FIXED_LENGTH:
 			break;
 		}
 		return null;
+	}
+
+
+
+	public String getKey() {
+		return key;
+	}
+
+
+
+	public void setKey(String key) {
+		this.key = key;
 	}
 
 }

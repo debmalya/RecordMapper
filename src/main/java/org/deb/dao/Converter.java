@@ -15,15 +15,17 @@
  */
 package org.deb.dao;
 
+import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
-import java.util.concurrent.TimeUnit;
 
 import org.deb.task.FieldMapper;
 
@@ -120,7 +122,7 @@ public class Converter {
 							if (nextFieldMapping != null && key != null
 									&& value != null) {
 								FieldMapper mapper = new FieldMapper(value,
-										values, record, conversionMap.getType());
+										values, record, conversionMap.getType(),key);
 								Future<NameNValue> mappedField = executors
 										.submit(mapper);
 								rawFieldMap.put(key, mappedField.get()
@@ -142,6 +144,138 @@ public class Converter {
 //							// what to do here
 //						}
 //					}
+				}
+				break;
+			case FIXED_LENGTH:
+				break;
+			}
+
+		}
+		return rawFieldMap;
+	}
+	
+	/**
+	 * Converts an input record to output record based on the provided mapping.
+	 * Here we are using executor service with concurrent hash map.
+	 * 
+	 * @param record
+	 * @param conversionMap
+	 * @return
+	 * @throws ExecutionException
+	 * @throws InterruptedException
+	 */
+	public Map<String, String> convertExecutorConcurrentHashMap(String record,
+			Mapping conversionMap) throws InterruptedException,
+			ExecutionException {
+		Map<String, String> rawFieldMap = new ConcurrentHashMap<>();
+		if (conversionMap != null) {
+
+			switch (conversionMap.getType()) {
+			case DELIMITER:
+				if (conversionMap.getFieldMapper() != null
+						&& !conversionMap.getFieldMapper().isEmpty()) {
+					String delimiter = conversionMap.getDelimiter();
+					String[] values = null;
+					if (conversionMap.getDelimiter().equals("|")) {
+						values = record.split("\\|");
+					} else {
+						values = record.split(delimiter);
+					}
+					Iterator<Entry<String, FieldMapping>> mapIterator = conversionMap
+							.getFieldMapper().entrySet().iterator();
+					try {
+						while (mapIterator.hasNext()) {
+							Entry<String, FieldMapping> nextFieldMapping = mapIterator
+									.next();
+							String key = nextFieldMapping.getKey();
+							FieldMapping value = nextFieldMapping.getValue();
+							if (nextFieldMapping != null && key != null
+									&& value != null) {
+								FieldMapper mapper = new FieldMapper(value,
+										values, record, conversionMap.getType(),key);
+								
+								Future<NameNValue> mappedField = executors
+										.submit(mapper);
+								rawFieldMap.put(key, mappedField.get()
+										.getValue());
+							}
+
+						}
+					} catch (InterruptedException | ExecutionException ie) {
+						throw ie;
+					} finally {
+
+					}
+
+
+				}
+				break;
+			case FIXED_LENGTH:
+				break;
+			}
+
+		}
+		return rawFieldMap;
+	}
+	
+	/**
+	 * Converts an input record to output record based on the provided mapping.
+	 * Here we are using parallel with concurrent hash map.
+	 * 
+	 * @param record
+	 * @param conversionMap
+	 * @return
+	 * @throws ExecutionException
+	 * @throws InterruptedException
+	 */
+	public Map<String, String> convertList(String record,
+			Mapping conversionMap) throws InterruptedException,
+			ExecutionException {
+		Map<String, String> rawFieldMap = new ConcurrentHashMap<>();
+		if (conversionMap != null) {
+
+			switch (conversionMap.getType()) {
+			case DELIMITER:
+				if (conversionMap.getFieldMapper() != null
+						&& !conversionMap.getFieldMapper().isEmpty()) {
+					String delimiter = conversionMap.getDelimiter();
+					String[] values = null;
+					if (conversionMap.getDelimiter().equals("|")) {
+						values = record.split("\\|");
+					} else {
+						values = record.split(delimiter);
+					}
+					Iterator<Entry<String, FieldMapping>> mapIterator = conversionMap
+							.getFieldMapper().entrySet().iterator();
+					try {
+						List<Future<NameNValue>> submittedTaskList = new ArrayList<>();
+						
+						while (mapIterator.hasNext()) {
+							Entry<String, FieldMapping> nextFieldMapping = mapIterator
+									.next();
+							String key = nextFieldMapping.getKey();
+							FieldMapping fieldMapping = nextFieldMapping.getValue();
+							if (nextFieldMapping != null && key != null
+									&& fieldMapping != null) {
+								FieldMapper mapper = new FieldMapper(fieldMapping,
+										values, record, conversionMap.getType(),key);
+								Future<NameNValue> mappedField = executors
+										.submit(mapper);
+								submittedTaskList.add(mappedField);	
+							}
+						}
+						
+						for (Future<NameNValue> eachField:submittedTaskList){
+							NameNValue eachFieldDetails = eachField.get();
+							rawFieldMap.put(eachFieldDetails.getName(), eachFieldDetails.getValue());
+						}
+					} catch (Throwable ie) {
+						throw ie;
+					} finally {
+
+					}
+
+
 				}
 				break;
 			case FIXED_LENGTH:
