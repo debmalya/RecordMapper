@@ -149,17 +149,15 @@ public class MyBenchmark {
 		try {
 			converter.convertExecutor(CDR_CSV, delimitedCDRMapping);
 		} catch (InterruptedException | ExecutionException e) {
-			// TODO Auto-generated catch block
 			e.printStackTrace();
 		}
 	}
 	
-	@Benchmark
+//	@Benchmark
 	public void testExecutorsConcurrentHashMap() {
 		try {
 			converter.convertExecutorConcurrentHashMap(CDR_CSV, delimitedCDRMapping);
 		} catch (InterruptedException | ExecutionException e) {
-			// TODO Auto-generated catch block
 			e.printStackTrace();
 		}
 	}
@@ -169,7 +167,15 @@ public class MyBenchmark {
 		try {
 			converter.convertList(CDR_CSV, delimitedCDRMapping);
 		} catch (InterruptedException | ExecutionException e) {
-			// TODO Auto-generated catch block
+			e.printStackTrace();
+		}
+	}
+
+	@Benchmark
+	public void testExecutorsStealingPool() {
+		try {
+			converter.convertUsingStealingPool(CDR_CSV, delimitedCDRMapping);
+		} catch (InterruptedException | ExecutionException e) {
 			e.printStackTrace();
 		}
 	}

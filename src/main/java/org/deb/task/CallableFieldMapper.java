@@ -25,7 +25,7 @@ import org.deb.dao.RecordType;
  * @author debmalyajash
  *
  */
-public class FieldMapper implements Callable<NameNValue> {
+public class CallableFieldMapper implements Callable<NameNValue>{
 	
 	private FieldMapping fieldMapping;
 	
@@ -38,7 +38,7 @@ public class FieldMapper implements Callable<NameNValue> {
 	private String key;
 	
 
-	public FieldMapper(FieldMapping fieldMapping,String[] values,String record,RecordType recordType,String key) {
+	public CallableFieldMapper(FieldMapping fieldMapping,String[] values,String record,RecordType recordType,String key) {
 		this.fieldMapping = fieldMapping;
 		this.record = record;
 		this.recordType = recordType;
@@ -46,6 +46,9 @@ public class FieldMapper implements Callable<NameNValue> {
 		this.key = key;
 	}
 
+	public CallableFieldMapper(){
+		
+	}
 
 
 	/* (non-Javadoc)
@@ -75,5 +78,8 @@ public class FieldMapper implements Callable<NameNValue> {
 	public void setKey(String key) {
 		this.key = key;
 	}
+
+
+
 
 }

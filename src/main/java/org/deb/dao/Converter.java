@@ -21,13 +21,18 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
+import java.util.concurrent.ArrayBlockingQueue;
+import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
+import java.util.concurrent.ThreadFactory;
+import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
 
-import org.deb.task.FieldMapper;
+import org.deb.task.CallableFieldMapper;
 
 /**
  * Converts record from one from to another based on provided mapping.
@@ -37,10 +42,26 @@ import org.deb.task.FieldMapper;
  */
 public class Converter {
 	ExecutorService executors;
+	
+	private ThreadPoolExecutor threadPoolExecutor;
+	private BlockingQueue<Runnable> workQueue = null; 
+	
+	private ExecutorService cachedThreadExecutors;
+	
+	private ExecutorService workStealingPool;
+	
 
 	public Converter(int numberOfFields) {
 		executors = Executors
 				.newFixedThreadPool(numberOfFields);
+		
+		workQueue = new ArrayBlockingQueue<Runnable>(numberOfFields);
+		threadPoolExecutor = new ThreadPoolExecutor(numberOfFields, numberOfFields*2, 10, TimeUnit.MILLISECONDS, workQueue , Executors.defaultThreadFactory() );
+		threadPoolExecutor.prestartAllCoreThreads();
+		
+		cachedThreadExecutors = Executors.newCachedThreadPool(Executors.defaultThreadFactory());
+		
+		workStealingPool = Executors.newWorkStealingPool();
 	}
 
 	/**
@@ -121,7 +142,7 @@ public class Converter {
 							FieldMapping value = nextFieldMapping.getValue();
 							if (nextFieldMapping != null && key != null
 									&& value != null) {
-								FieldMapper mapper = new FieldMapper(value,
+								CallableFieldMapper mapper = new CallableFieldMapper(value,
 										values, record, conversionMap.getType(),key);
 								Future<NameNValue> mappedField = executors
 										.submit(mapper);
@@ -191,7 +212,7 @@ public class Converter {
 							FieldMapping value = nextFieldMapping.getValue();
 							if (nextFieldMapping != null && key != null
 									&& value != null) {
-								FieldMapper mapper = new FieldMapper(value,
+								CallableFieldMapper mapper = new CallableFieldMapper(value,
 										values, record, conversionMap.getType(),key);
 								
 								Future<NameNValue> mappedField = executors
@@ -257,7 +278,8 @@ public class Converter {
 							FieldMapping fieldMapping = nextFieldMapping.getValue();
 							if (nextFieldMapping != null && key != null
 									&& fieldMapping != null) {
-								FieldMapper mapper = new FieldMapper(fieldMapping,
+								
+								CallableFieldMapper mapper = new CallableFieldMapper(fieldMapping,
 										values, record, conversionMap.getType(),key);
 								Future<NameNValue> mappedField = executors
 										.submit(mapper);
@@ -286,7 +308,79 @@ public class Converter {
 		return rawFieldMap;
 	}
 	
+	/**
+	 * Converts an input record to output record based on the provided mapping.
+	 * Here we are using parallel with concurrent hash map.
+	 * 
+	 * @param record
+	 * @param conversionMap
+	 * @return
+	 * @throws ExecutionException
+	 * @throws InterruptedException
+	 */
+	public Map<String, String> convertUsingStealingPool(String record,
+			Mapping conversionMap) throws InterruptedException,
+			ExecutionException {
+		Map<String, String> rawFieldMap = new ConcurrentHashMap<>();
+		if (conversionMap != null) {
+
+			switch (conversionMap.getType()) {
+			case DELIMITER:
+				if (conversionMap.getFieldMapper() != null
+						&& !conversionMap.getFieldMapper().isEmpty()) {
+					String delimiter = conversionMap.getDelimiter();
+					String[] values = null;
+					if (conversionMap.getDelimiter().equals("|")) {
+						values = record.split("\\|");
+					} else {
+						values = record.split(delimiter);
+					}
+					Iterator<Entry<String, FieldMapping>> mapIterator = conversionMap
+							.getFieldMapper().entrySet().iterator();
+					try {
+						List<Future<NameNValue>> submittedTaskList = new ArrayList<>();
+						
+						while (mapIterator.hasNext()) {
+							Entry<String, FieldMapping> nextFieldMapping = mapIterator
+									.next();
+							String key = nextFieldMapping.getKey();
+							FieldMapping fieldMapping = nextFieldMapping.getValue();
+							if (nextFieldMapping != null && key != null
+									&& fieldMapping != null) {
+								
+								CallableFieldMapper mapper = new CallableFieldMapper(fieldMapping,
+										values, record, conversionMap.getType(),key);
+								Future<NameNValue> mappedField = workStealingPool
+										.submit(mapper);
+								submittedTaskList.add(mappedField);	
+							}
+						}
+						
+						for (Future<NameNValue> eachField:submittedTaskList){
+							NameNValue eachFieldDetails = eachField.get();
+							rawFieldMap.put(eachFieldDetails.getName(), eachFieldDetails.getValue());
+						}
+					} catch (Throwable ie) {
+						throw ie;
+					} finally {
+
+					}
+
+
+				}
+				break;
+			case FIXED_LENGTH:
+				break;
+			}
+
+		}
+		return rawFieldMap;
+	}
+	
 	public void shutDown(){
 		executors.shutdown();
+		threadPoolExecutor.shutdown();
+		workStealingPool.shutdown();
+		
 	}
 }
