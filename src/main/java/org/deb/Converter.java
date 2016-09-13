@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.deb.dao;
+package org.deb;
 
 import java.util.ArrayList;
 import java.util.Iterator;
@@ -32,6 +32,9 @@ import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 
+import org.deb.dao.FieldMapping;
+import org.deb.dao.Mapping;
+import org.deb.dao.NameNValue;
 import org.deb.task.CallableFieldMapper;
 
 /**
@@ -50,6 +53,8 @@ public class Converter {
 	
 	private ExecutorService workStealingPool;
 	
+	private ExecutorService singleThreadedExecutorService;
+	
 
 	public Converter(int numberOfFields) {
 		executors = Executors
@@ -62,6 +67,8 @@ public class Converter {
 		cachedThreadExecutors = Executors.newCachedThreadPool(Executors.defaultThreadFactory());
 		
 		workStealingPool = Executors.newWorkStealingPool();
+		
+		singleThreadedExecutorService = Executors.newSingleThreadExecutor(Executors.defaultThreadFactory());
 	}
 
 	/**
@@ -383,4 +390,75 @@ public class Converter {
 		workStealingPool.shutdown();
 		
 	}
+	
+	/**
+	 * Converts an input record to output record based on the provided mapping.
+	 * Here we are using parallel with concurrent hash map.
+	 * 
+	 * @param record
+	 * @param conversionMap
+	 * @return
+	 * @throws ExecutionException
+	 * @throws InterruptedException
+	 */
+	public Map<String, String> convertUsingCachedPool(String record,
+			Mapping conversionMap) throws InterruptedException,
+			ExecutionException {
+		Map<String, String> rawFieldMap = new ConcurrentHashMap<>();
+		if (conversionMap != null) {
+
+			switch (conversionMap.getType()) {
+			case DELIMITER:
+				if (conversionMap.getFieldMapper() != null
+						&& !conversionMap.getFieldMapper().isEmpty()) {
+					String delimiter = conversionMap.getDelimiter();
+					String[] values = null;
+					if (conversionMap.getDelimiter().equals("|")) {
+						values = record.split("\\|");
+					} else {
+						values = record.split(delimiter);
+					}
+					Iterator<Entry<String, FieldMapping>> mapIterator = conversionMap
+							.getFieldMapper().entrySet().iterator();
+					try {
+						List<Future<NameNValue>> submittedTaskList = new ArrayList<>();
+						
+						while (mapIterator.hasNext()) {
+							Entry<String, FieldMapping> nextFieldMapping = mapIterator
+									.next();
+							String key = nextFieldMapping.getKey();
+							FieldMapping fieldMapping = nextFieldMapping.getValue();
+							if (nextFieldMapping != null && key != null
+									&& fieldMapping != null) {
+								
+								CallableFieldMapper mapper = new CallableFieldMapper(fieldMapping,
+										values, record, conversionMap.getType(),key);
+								Future<NameNValue> mappedField = cachedThreadExecutors
+										.submit(mapper);
+								submittedTaskList.add(mappedField);	
+							}
+						}
+						
+						for (Future<NameNValue> eachField:submittedTaskList){
+							NameNValue eachFieldDetails = eachField.get();
+							rawFieldMap.put(eachFieldDetails.getName(), eachFieldDetails.getValue());
+						}
+					} catch (Throwable ie) {
+						throw ie;
+					} finally {
+
+					}
+
+
+				}
+				break;
+			case FIXED_LENGTH:
+				break;
+			}
+
+		}
+		return rawFieldMap;
+	}
+	
+	
 }
